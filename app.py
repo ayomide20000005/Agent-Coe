@@ -7,7 +7,7 @@ from PIL import Image
 import time
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Agent Coe", page_icon="🇳🇬", layout="wide")
+st.set_page_config(page_title="Agent Coe", page_icon="🛡️", layout="wide")
 
 # Ensure uploads folder exists
 if not os.path.exists('uploads'):
@@ -85,7 +85,7 @@ def extract_text_from_image(image_file):
         return f"Error: Tesseract not found or image unreadable. {str(e)}"
 
 # --- MAIN UI ---
-st.title("🇳🇬 Agent Coe")
+st.title("Agent Coe")
 st.markdown("### Direct Evidence Search & Document Verification")
 st.info("Enter any detail below. Combine fields for precise results. Click links to verify.")
 
@@ -116,9 +116,8 @@ with tab1:
                     st.write(f"**Note:** {local_hit[1]}")
                     st.divider()
 
-            # SHOW LOADING SPINNER WHILE SEARCHING
-            with st.spinner("🌐 Surfing the web... Checking Nairaland, Twitter, News & Forums..."):
-                # Simulate a tiny delay so the spinner is visible (optional, but feels smoother)
+            # SHOW LOADING SPINNER (No text inside)
+            with st.spinner(""):
                 time.sleep(0.5) 
                 results = search_online(inp_phone, inp_name, inp_city, inp_desc)
             
@@ -178,6 +177,4 @@ with tab3:
             else:
                 st.warning("Please fill both fields.")
 
-# Footer
-st.markdown("---")
-st.caption("Built for Nigeria. Runs on free open-source tools.")
+# Footer removed completely
