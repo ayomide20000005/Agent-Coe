@@ -1,0 +1,6 @@
+[server]
+headless = true
+[runner]
+magicEnabled = true
+[theme]
+primaryColor = '#FF4B4B'
