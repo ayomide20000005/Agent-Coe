@@ -6,7 +6,7 @@ import pytesseract
 from PIL import Image
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Agent Coe", page_icon="🇳🇬", layout="centered")
+st.set_page_config(page_title="Agent Coe", page_icon="🇳🇬", layout="wide")
 
 # Ensure uploads folder exists
 if not os.path.exists('uploads'):
@@ -22,6 +22,7 @@ def init_db():
     conn.close()
 
 def check_local_db(phone):
+    if not phone: return None
     conn = sqlite3.connect('scam_db.sqlite')
     c = conn.cursor()
     c.execute("SELECT status, notes FROM scams WHERE phone=?", (phone,))
@@ -39,29 +40,50 @@ def report_scam(phone, notes):
 # Initialize DB
 init_db()
 
-# --- DUCKDUCKGO SEARCH FUNCTION (USING NEW DDGS) ---
-def search_online(query):
+# --- ADVANCED SEARCH FUNCTION ---
+def search_online(phone, name, city, description):
     try:
         results = []
-        # Use the new 'ddgs' library correctly
+        
+        # Build the query parts based on what user filled
+        parts = []
+        if phone: parts.append(f'"{phone}"')
+        if name: parts.append(f'"{name}"')
+        if city: parts.append(f'"{city}"')
+        if description: parts.append(f'"{description}"')
+        
+        # If nothing entered, stop
+        if not parts:
+            return []
+
+        # Combine parts with AND logic for precision
+        # Add context keywords if only name/city provided to avoid generic noise
+        base_query = " AND ".join(parts)
+        
+        # If no specific negative keyword was typed, append general fraud context to filter noise
+        if "scam" not in base_query.lower() and "fraud" not in base_query.lower():
+            # We search for the details first, then let the user see context
+            # But to keep it clean, we just search the exact combination
+            final_query = base_query
+        else:
+            final_query = base_query
+
         with DDGS() as ddgs:
-            # Construct a query that forces real results from Nigerian sources
-            search_term = f"{query} scam fraud complaint nigeria real estate"
-            
-            # Perform the search
-            generator = ddgs.text(search_term, max_results=5)
+            # Search for the exact combination
+            generator = ddgs.text(final_query, max_results=10)
             
             for r in generator:
-                if r and 'title' in r and 'body' in r:
-                    results.append(f"🔗 **{r['title']}**: {r['body']}")
+                if r and 'title' in r and 'body' in r and 'href' in r:
+                    results.append({
+                        "title": r['title'],
+                        "link": r['href'],
+                        "snippet": r['body']
+                    })
         
-        if not results:
-            return ["ℹ️ Search completed. No public scam reports found for this specific term on the open web."]
-            
         return results
         
     except Exception as e:
-        return [f"❌ **Connection Error**: Could not surf the web. Details: {str(e)}"]
+        return [{"title": "Search Error", "link": "#", "snippet": f"Could not connect to web: {str(e)}"}]
 
 # --- OCR DOCUMENT FUNCTION ---
 def extract_text_from_image(image_file):
@@ -73,46 +95,52 @@ def extract_text_from_image(image_file):
 
 # --- MAIN UI ---
 st.title("🇳🇬 Agent Coe")
-st.markdown("### Verify Agents & Documents for Free")
-st.info("No fees. No cards. Just truth.")
+st.markdown("### Direct Evidence Search & Document Verification")
+st.info("Enter any detail below. Combine fields for precise results. Click links to verify.")
 
-tab1, tab2, tab3 = st.tabs(["📞 Check Phone/Agent", "📄 Scan Document", "🚨 Report Scam"])
+tab1, tab2, tab3 = st.tabs(["🔍 Deep Web Search", "📄 Scan Document", "🚨 Report Scam"])
 
-# TAB 1: PHONE CHECK
+# TAB 1: DEEP WEB SEARCH
 with tab1:
-    st.header("Check Agent or Landlord Number")
-    phone_input = st.text_input("Enter Phone Number or Name to Search")
+    st.header("Find Direct Evidence Online")
+    st.markdown("Fill one or more fields. The more you fill, the more precise the search.")
     
-    if st.button("Analyze & Surf Web"):
-        if not phone_input:
-            st.warning("Please enter a number or name.")
+    col1, col2 = st.columns(2)
+    with col1:
+        inp_phone = st.text_input("Phone Number (e.g., 08012345678)")
+        inp_name = st.text_input("Name (e.g., Mr. Okon)")
+    with col2:
+        inp_city = st.text_input("City/Location (e.g., Lekki, Abuja)")
+        inp_desc = st.text_input("Description/Keywords (e.g., stole deposit, fake title)")
+    
+    if st.button("Search Web Now", type="primary"):
+        if not any([inp_phone, inp_name, inp_city, inp_desc]):
+            st.warning("Please enter at least one detail to search.")
         else:
-            # 1. Check Local DB
-            local_hit = check_local_db(phone_input)
-            if local_hit:
-                st.error(f"🚨 **ALERT**: This number is in our Scam Database!")
-                st.write(f"**Note:** {local_hit[1]}")
+            # Check local DB first if phone is present
+            if inp_phone:
+                local_hit = check_local_db(inp_phone)
+                if local_hit:
+                    st.error(f"🚨 **INTERNAL ALERT**: This number is in our Scam Database!")
+                    st.write(f"**Note:** {local_hit[1]}")
+                    st.divider()
+
+            # Run Online Search
+            results = search_online(inp_phone, inp_name, inp_city, inp_desc)
+            
+            if not results:
+                st.warning("No direct web pages found containing this exact combination of details.")
             else:
-                st.info("✅ Not in local blacklist. **Surfing the web now...**")
+                st.success(f"Found {len(results)} direct matches online:")
+                st.divider()
                 
-                # 2. Search Online (Live)
-                with st.spinner("Searching Nairaland, Twitter, News & Forums..."):
-                    results = search_online(phone_input)
-                
-                if results:
-                    st.write("### 🌐 Live Online Findings:")
-                    for res in results:
-                        if "Connection Error" in res or "No public scam" in res:
-                            st.warning(res)
-                        else:
-                            st.markdown(res)
-                    
-                    if any("Connection Error" not in res and "No public scam" not in res for res in results):
-                        st.error("⚠️ **WARNING**: Negative reports found above! Proceed with extreme caution.")
-                    else:
-                        st.success("✅ No negative reports found online. Proceed with standard caution.")
-                else:
-                    st.success("✅ No negative reports found online.")
+                for i, res in enumerate(results):
+                    # Display as a clean card
+                    with st.container():
+                        st.markdown(f"#### [{res['title']}]({res['link']})")
+                        st.caption(f"Source: {res['link']}")
+                        st.write(f"**Snippet:** _{res['snippet']}_")
+                        st.markdown("---")
 
 # TAB 2: DOCUMENT SCAN
 with tab2:
