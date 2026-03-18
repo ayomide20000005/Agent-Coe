@@ -4,6 +4,7 @@ import sqlite3
 import os
 import pytesseract
 from PIL import Image
+import time
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="Agent Coe", page_icon="🇳🇬", layout="wide")
@@ -52,21 +53,11 @@ def search_online(phone, name, city, description):
         if city: parts.append(f'"{city}"')
         if description: parts.append(f'"{description}"')
         
-        # If nothing entered, stop
         if not parts:
             return []
 
-        # Combine parts with AND logic for precision
-        # Add context keywords if only name/city provided to avoid generic noise
-        base_query = " AND ".join(parts)
-        
-        # If no specific negative keyword was typed, append general fraud context to filter noise
-        if "scam" not in base_query.lower() and "fraud" not in base_query.lower():
-            # We search for the details first, then let the user see context
-            # But to keep it clean, we just search the exact combination
-            final_query = base_query
-        else:
-            final_query = base_query
+        # Combine parts with AND logic
+        final_query = " AND ".join(parts)
 
         with DDGS() as ddgs:
             # Search for the exact combination
@@ -125,13 +116,17 @@ with tab1:
                     st.write(f"**Note:** {local_hit[1]}")
                     st.divider()
 
-            # Run Online Search
-            results = search_online(inp_phone, inp_name, inp_city, inp_desc)
+            # SHOW LOADING SPINNER WHILE SEARCHING
+            with st.spinner("🌐 Surfing the web... Checking Nairaland, Twitter, News & Forums..."):
+                # Simulate a tiny delay so the spinner is visible (optional, but feels smoother)
+                time.sleep(0.5) 
+                results = search_online(inp_phone, inp_name, inp_city, inp_desc)
             
+            # Display Results after loading finishes
             if not results:
-                st.warning("No direct web pages found containing this exact combination of details.")
+                st.warning("⚠️ No direct web pages found containing this exact combination of details.")
             else:
-                st.success(f"Found {len(results)} direct matches online:")
+                st.success(f"✅ Found {len(results)} direct matches online:")
                 st.divider()
                 
                 for i, res in enumerate(results):
@@ -151,7 +146,7 @@ with tab2:
         st.image(uploaded_file, caption="Uploaded Document", use_column_width=True)
         
         if st.button("Scan Document Text"):
-            with st.spinner("Reading document..."):
+            with st.spinner("📄 Reading document text..."):
                 text = extract_text_from_image(uploaded_file)
                 
                 st.subheader("Extracted Text:")
