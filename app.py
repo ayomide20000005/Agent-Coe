@@ -1,5 +1,5 @@
 import streamlit as st
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 import sqlite3
 import os
 import pytesseract
@@ -39,18 +39,29 @@ def report_scam(phone, notes):
 # Initialize DB
 init_db()
 
-# --- DUCKDUCKGO SEARCH FUNCTION ---
+# --- DUCKDUCKGO SEARCH FUNCTION (USING NEW DDGS) ---
 def search_online(query):
     try:
         results = []
+        # Use the new 'ddgs' library correctly
         with DDGS() as ddgs:
-            # Search for phone + scam keywords
+            # Construct a query that forces real results from Nigerian sources
             search_term = f"{query} scam fraud complaint nigeria real estate"
-            for r in ddgs.text(search_term, max_results=5):
-                results.append(f"🔗 **{r['title']}**: {r['body']}")
+            
+            # Perform the search
+            generator = ddgs.text(search_term, max_results=5)
+            
+            for r in generator:
+                if r and 'title' in r and 'body' in r:
+                    results.append(f"🔗 **{r['title']}**: {r['body']}")
+        
+        if not results:
+            return ["ℹ️ Search completed. No public scam reports found for this specific term on the open web."]
+            
         return results
+        
     except Exception as e:
-        return [f"⚠️ Search failed (check internet): {str(e)}"]
+        return [f"❌ **Connection Error**: Could not surf the web. Details: {str(e)}"]
 
 # --- OCR DOCUMENT FUNCTION ---
 def extract_text_from_image(image_file):
@@ -70,11 +81,11 @@ tab1, tab2, tab3 = st.tabs(["📞 Check Phone/Agent", "📄 Scan Document", "�
 # TAB 1: PHONE CHECK
 with tab1:
     st.header("Check Agent or Landlord Number")
-    phone_input = st.text_input("Enter Phone Number (e.g., 08012345678)")
+    phone_input = st.text_input("Enter Phone Number or Name to Search")
     
-    if st.button("Analyze Number"):
+    if st.button("Analyze & Surf Web"):
         if not phone_input:
-            st.warning("Please enter a number.")
+            st.warning("Please enter a number or name.")
         else:
             # 1. Check Local DB
             local_hit = check_local_db(phone_input)
@@ -82,16 +93,26 @@ with tab1:
                 st.error(f"🚨 **ALERT**: This number is in our Scam Database!")
                 st.write(f"**Note:** {local_hit[1]}")
             else:
-                st.info("✅ Not in local blacklist. Searching online reports...")
-                # 2. Search Online
-                results = search_online(phone_input)
+                st.info("✅ Not in local blacklist. **Surfing the web now...**")
+                
+                # 2. Search Online (Live)
+                with st.spinner("Searching Nairaland, Twitter, News & Forums..."):
+                    results = search_online(phone_input)
+                
                 if results:
-                    st.write("### 🌐 Online Findings:")
+                    st.write("### 🌐 Live Online Findings:")
                     for res in results:
-                        st.markdown(res)
-                    st.warning("⚠️ If you see complaints above, proceed with extreme caution.")
+                        if "Connection Error" in res or "No public scam" in res:
+                            st.warning(res)
+                        else:
+                            st.markdown(res)
+                    
+                    if any("Connection Error" not in res and "No public scam" not in res for res in results):
+                        st.error("⚠️ **WARNING**: Negative reports found above! Proceed with extreme caution.")
+                    else:
+                        st.success("✅ No negative reports found online. Proceed with standard caution.")
                 else:
-                    st.success("✅ No negative reports found online. Proceed with standard caution.")
+                    st.success("✅ No negative reports found online.")
 
 # TAB 2: DOCUMENT SCAN
 with tab2:
