@@ -1,0 +1,1 @@
+Search for nigeria scams
